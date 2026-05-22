@@ -19,6 +19,7 @@ import { MultipleQuerySpec, getMultiQuerySpecFilename } from './api-web-multiple
 import { SimpleResponseResultWriter, WebResutlWriter, TarballResponseResultWriter } from '../utils/writer';
 import { splitCamelCase } from '../../../mol-util/string';
 import { healthCheck } from '../../common/util';
+import { createJobRunner } from './job-runner';
 
 function makePath(p: string) {
     return Config.apiPrefix + '/' + p;
@@ -26,24 +27,23 @@ function makePath(p: string) {
 
 const responseMap = new Map<UUID, express.Response>();
 
-async function processNextJob() {
-    if (!JobManager.hasNext()) return;
-
-    const job = JobManager.getNext();
-    responseMap.delete(job.id);
-    const writer = job.writer as WebResutlWriter;
-
-    try {
-        await resolveJob(job);
-    } catch (e) {
-        ConsoleLogger.errorId(job.id, '' + e);
-        writer.doError(404, '' + e);
-    } finally {
-        writer.end();
-        ConsoleLogger.logId(job.id, 'Query', 'Finished.');
-        setImmediate(processNextJob);
+const jobRunner = createJobRunner(
+    () => JobManager.hasNext(),
+    async () => {
+        const job = JobManager.getNext();
+        responseMap.delete(job.id);
+        const writer = job.writer as WebResutlWriter;
+        try {
+            await resolveJob(job);
+        } catch (e) {
+            ConsoleLogger.errorId(job.id, '' + e);
+            writer.doError(404, '' + e);
+        } finally {
+            writer.end();
+            ConsoleLogger.logId(job.id, 'Query', 'Finished.');
+        }
     }
-}
+);
 
 export function createResultWriter(response: express.Response, params: ResultWriterParams) {
     const filenameBase = params.entryId && params.queryName
@@ -71,7 +71,7 @@ function mapQuery(app: express.Express, queryName: string, queryDefinition: Quer
             options: { binary: commonParams.encoding === 'bcif', encoding: commonParams.encoding }
         });
         responseMap.set(jobId, res);
-        if (JobManager.size === 1) processNextJob();
+        jobRunner.kick();
     }
 
     app.get(makePath('v1/:id/' + queryName), (req, res) => {
@@ -143,7 +143,7 @@ function createMultiJob(spec: MultipleQuerySpec, res: express.Response) {
         options: { binary: spec.encoding?.toLowerCase() === 'bcif', tarball: spec.asTarGz }
     });
     responseMap.set(jobId, res);
-    if (JobManager.size === 1) processNextJob();
+    jobRunner.kick();
 }
 
 export function initWebApi(app: express.Express) {
