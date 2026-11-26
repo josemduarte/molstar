@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file, following t
 Note that since we don't clearly distinguish between a public and private interfaces there will be changes in non-major versions that are potentially breaking. If we make breaking changes to less used interfaces we will highlight it in here.
 
 ## [Unreleased]
+- VolumeServer: add `idNormalization` config prop (`pdb-extended`, `pdb-legacy`) to serve requests by legacy (`1abc`) and extended (`pdb_00001abc`) PDB ids from the same storage
 
 ## [v5.13.1] - 2026-10-08
 - ModelServer and VolumeServer: support chained string operations in path templates and fix `substring` to use an exclusive end index instead of a length (#1963)

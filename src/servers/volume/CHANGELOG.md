@@ -1,3 +1,6 @@
+# 0.9.8
+* Add `idNormalization` config prop to serve requests by legacy (`1abc`) and extended (`pdb_00001abc`) PDB ids from the same storage.
+
 # 0.9.7
 * Avoid grid expansion when requiring unit cell.
 

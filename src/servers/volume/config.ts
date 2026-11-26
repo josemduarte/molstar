@@ -1,14 +1,16 @@
 /**
- * Copyright (c) 2019-2024 mol* contributors, licensed under MIT, See LICENSE file for more info.
+ * Copyright (c) 2019-2026 mol* contributors, licensed under MIT, See LICENSE file for more info.
  *
  * @author David Sehnal <david.sehnal@gmail.com>
  * @author Alexander Rose <alexander.rose@weirdbyte.de>
  * @author Sebastian Bittrich <sebastian.bittrich@rcsb.org>
+ * @author Jose Duarte <jose.duarte@rcsb.org>
  */
 
 import * as argparse from 'argparse';
 import { ObjectKeys } from '../../mol-util/type-helpers';
 import { VOLUME_SERVER_HEADER } from './server/version';
+import { IdNormalizations, isIdNormalization } from './server/id-mapping';
 import * as fs from 'fs';
 
 const DefaultServerConfig = {
@@ -17,6 +19,10 @@ const DefaultServerConfig = {
     shutdownTimeoutMinutes: 24 * 60, /* a day */
     shutdownTimeoutVarianceMinutes: 60,
     idMap: [] as [string, string][],
+    /**
+     * Rewrites request ids of a `type` before they are mapped by `idMap`, e.g. [['x-ray', 'pdb-extended']].
+     */
+    idNormalization: [] as [string, string][],
     healthCheckPath: [] as string[],
     /**
      * Contents of a robots.txt file for web crawlers
@@ -90,6 +96,23 @@ function addServerArgs(parser: argparse.ArgumentParser) {
             '  - If using URL, it can be http://, https://, gs:// or file:// protocol.',
         ].join('\n'),
     });
+    parser.add_argument('--idNormalization', {
+        nargs: 2,
+        action: 'append',
+        metavar: ['TYPE', 'MODE'] as any,
+        help: [
+            'Rewrite request `id`s of a `type` before they are mapped to a path by `idMap`.',
+            'Example: x-ray pdb-extended',
+            '',
+            `  - Supported modes: ${IdNormalizations.join(', ')}.`,
+            '  - pdb-extended: legacy PDB ids become extended ids (1ABC -> pdb_00001abc), so that storage named by',
+            '    extended ids serves requests by either id. Use with e.g. x-ray \'/data/${id.substr(9, 2)}/${id}.mdb\'.',
+            '  - pdb-legacy: extended ids with a legacy equivalent become legacy ids (pdb_00001abc -> 1abc), so that',
+            '    storage named by legacy ids serves requests by either id.',
+            '  - Ids that are not PDB ids of the expected form are only lowercased, as without this option.',
+            '  - Can be specified multiple times.',
+        ].join('\n'),
+    });
     parser.add_argument('--healthCheckPath', {
         default: DefaultServerConfig.healthCheckPath,
         action: 'append',
@@ -128,6 +151,11 @@ function setServerConfig(config: ServerConfig) {
 function validateServerConfig() {
     if (!ServerConfig.idMap || ServerConfig.idMap.length === 0) {
         throw new Error(`Please provide 'idMap' configuration. See [-h] for available options.`);
+    }
+    for (const [type, mode] of ServerConfig.idNormalization ?? []) {
+        if (!isIdNormalization(mode)) {
+            throw new Error(`Invalid 'idNormalization' mode '${mode}' for type '${type}', expected one of: ${IdNormalizations.join(', ')}.`);
+        }
     }
 }
 

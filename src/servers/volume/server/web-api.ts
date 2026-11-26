@@ -1,10 +1,11 @@
 /**
- * Copyright (c) 2018-2024 mol* contributors, licensed under MIT, See LICENSE file for more info.
+ * Copyright (c) 2018-2026 mol* contributors, licensed under MIT, See LICENSE file for more info.
  *
  * Taken/adapted from DensityServer (https://github.com/dsehnal/DensityServer)
  *
  * @author David Sehnal <david.sehnal@gmail.com>
  * @author Alexander Rose <alexander.rose@weirdbyte.de>
+ * @author Jose Duarte <jose.duarte@rcsb.org>
  */
 
 import * as express from 'express';
@@ -15,7 +16,7 @@ import * as Coords from './algebra/coordinate';
 import { ConsoleLogger } from '../../../mol-util/console-logger';
 import { State } from './state';
 import { LimitsConfig, ServerConfig } from '../config';
-import { interpolateIdPath, validateIdPathTemplate } from '../../../mol-util/string';
+import { createIdToPathMapper } from './id-mapping';
 import { getSchema, shortcutIconLink } from './web-schema';
 import { swaggerUiIndexHandler, swaggerUiAssetsHandler } from '../../common/swagger-ui';
 import { healthCheck } from '../../common/util';
@@ -55,15 +56,7 @@ export function init(app: express.Express) {
 }
 
 function getMapFileFn() {
-    const idMap = new Map<string, string>();
-    for (const [type, path] of ServerConfig.idMap) {
-        validateIdPathTemplate(path);
-        idMap.set(type.toLowerCase(), path);
-    }
-    return (type: string, id: string) => {
-        const path = idMap.get(type.toLowerCase());
-        return path ? interpolateIdPath(path, id.toLowerCase()) : void 0;
-    };
+    return createIdToPathMapper(ServerConfig.idMap, ServerConfig.idNormalization);
 }
 
 function wrapResponse(fn: string, res: express.Response) {
